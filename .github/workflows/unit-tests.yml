@@ -1,0 +1,66 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [ arbitrage-scanner/init ]
+  pull_request:
+    branches: [ arbitrage-scanner/init ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Lint with flake8
+      run: |
+        flake8 app tests --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 app tests --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Format check with black
+      run: |
+        black --check app tests || true
+    
+    - name: Type check with mypy
+      run: |
+        mypy app --ignore-missing-imports || true
+    
+    - name: Run unit tests with coverage
+      run: |
+        pytest tests/unit --cov=app --cov-report=xml --cov-report=html -v
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+    
+    - name: Generate coverage badge
+      run: |
+        coverage-badge -o coverage.svg
+      continue-on-error: true
+    
+    - name: Archive test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results-${{ matrix.python-version }}
+        path: |
+          htmlcov/
+          coverage.svg
